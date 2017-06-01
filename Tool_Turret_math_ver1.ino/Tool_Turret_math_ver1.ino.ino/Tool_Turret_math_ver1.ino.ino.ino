@@ -70,11 +70,12 @@ void setup() {
 void loop() {
   serial_read();
 
-  if (floor(pulse_target) != pulse_count){
-    
-    trapezoid(floor(abs(pulse_target-pulse_count)), 1, tool_accel, tool_vel_max);
+  if ((int)pulse_target != pulse_count){
+
+    pulse_target += backstep*res/1.8;
+    trapezoid(abs((int)pulse_target-pulse_count), 1, tool_accel, tool_vel_max);
     pulse_target -= backstep*res/1.8;
-    trapezoid(ceil(abs(pulse_target-pulse_count)), 0, backstep_accel, backstep_vel_max);
+    trapezoid(abs((int)pulse_target-pulse_count), 0, backstep_accel, backstep_vel_max);
     
   }
   
@@ -175,6 +176,11 @@ void serial_read(){
 
     if (command == "pos"){
       pos_target = value.toFloat();
+      pulse_target += pos_target * res / 1.8;
+    }
+
+    if (command == "t"){
+      pos_target = value.toFloat() * 60;
       pulse_target += pos_target * res / 1.8;
     }
   }
