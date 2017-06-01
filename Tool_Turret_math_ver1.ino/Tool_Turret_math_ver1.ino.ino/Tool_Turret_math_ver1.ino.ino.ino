@@ -30,7 +30,9 @@ long pulse_count = 0;
 float pulse_target = 0;
 
 float trap_count = 0;
-bool rem_flag = 0;
+
+int tool_num = 1;
+int tool_tot = 6;
 
 void setup() {
   
@@ -180,7 +182,24 @@ void serial_read(){
     }
 
     if (command == "t"){
-      pos_target = value.toFloat() * 60;
+
+      int rot = 0;
+      int tool_target = value.toInt();
+      if (tool_target <= tool_tot && tool_target >= 1){
+        rot = tool_target - tool_num;
+        if (rot < 0){
+          rot += tool_tot;
+        }
+      }
+   
+      tool_num = tool_num + rot;
+        if (tool_num > tool_tot){
+          tool_num -= tool_tot;        
+        }
+      Serial.print("Tool number: ");
+      Serial.println(tool_num);
+      
+      pos_target = rot * 60;
       pulse_target += pos_target * res / 1.8;
     }
   }
