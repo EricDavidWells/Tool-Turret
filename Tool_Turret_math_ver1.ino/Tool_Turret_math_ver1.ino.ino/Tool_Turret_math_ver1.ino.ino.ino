@@ -29,6 +29,7 @@ float pulse_timer = 0;
 long pulse_count = 0;
 float pulse_target = 0;
 
+float trap_count = 0;
 bool rem_flag = 0;
 
 void setup() {
@@ -69,17 +70,12 @@ void setup() {
 void loop() {
   serial_read();
 
-  if (pulse_target != pulse_count){
-    if (rem_flag == 0){
-      pulse_target = ceil(pulse_target);
-      rem_flag = 1;
-    }
-    if (rem_flag == 1){
-      pulse_target = floor(pulse_target);
-      rem_flag = 0;
-    }
-    trapezoid(pulse_target, 1, tool_accel, tool_vel_max);
-    trapezoid(backstep*res/1.8, 0, backstep_accel, backstep_vel_max);
+  if (floor(pulse_target) != pulse_count){
+    
+    trapezoid(floor(abs(pulse_target-pulse_count)), 1, tool_accel, tool_vel_max);
+    pulse_target -= backstep*res/1.8;
+    trapezoid(ceil(abs(pulse_target-pulse_count)), 0, backstep_accel, backstep_vel_max);
+    
   }
   
   
@@ -94,10 +90,9 @@ void loop() {
 }
 
 void trapezoid(long p3, bool dir, float accel, float vel_max){
+
+  trap_count = 0;
   
-  digitalWrite(DIRPIN, dir);  
-  delayMicroseconds(10);
-          
   float t1 = vel_max/accel;
   float p1 = accel*pow(t1,2)/2;
   float p2 = p3 - p1;
@@ -110,18 +105,19 @@ void trapezoid(long p3, bool dir, float accel, float vel_max){
   long timer = micros();
   long pulse_timer = micros();
 
-  pulse();
-  while(pulse_count < p3){
+  pulse(dir);
+  
+  while(trap_count < p3){
 
-    if (pulse_count < p1){
-      vel = accel  * sqrt(2.00*pulse_count/accel);
+    if (trap_count < p1){
+      vel = accel  * sqrt(2.00*trap_count/accel);
     }
-    if (pulse_count > p2){
-      vel = accel * sqrt(2.00*(p3-pulse_count)/accel);
+    if (trap_count > p2){
+      vel = accel * sqrt(2.00*(p3-trap_count)/accel);
     }
 
     if (micros() - pulse_timer > 1000000/vel){
-      pulse();
+      pulse(dir);   
       pulse_timer = micros();
 //        Serial.print("position: ");
 //        Serial.print(pulse_count);
@@ -130,20 +126,28 @@ void trapezoid(long p3, bool dir, float accel, float vel_max){
 //        Serial.print('\n');
     }
   }
-    pos = 0;
-    pulse_count = 0;
-    pulse_target = 0;
-    vel = 0;
-    p3 = 0;
+  
+ Serial.print(pulse_count);  Serial.print(' '); Serial.println(pulse_target); 
+  
 }
 
-void pulse(){
+void pulse(bool dir){
+  digitalWrite(DIRPIN, dir);
+  delayMicroseconds(4);
   digitalWrite(STEPPIN, HIGH);
   delayMicroseconds(4);
   digitalWrite(STEPPIN, LOW);
   delayMicroseconds(4);
-  pos += 1.8/res;
-  pulse_count += 1;
+
+  trap_count += 1;
+  if (dir == 1){
+    pos += 1.8/res;
+    pulse_count += 1;
+  }
+  else{
+    pos -= 1.8/res;
+    pulse_count -= 1;
+  }
 }
 
 void serial_read(){
@@ -171,7 +175,7 @@ void serial_read(){
 
     if (command == "pos"){
       pos_target = value.toFloat();
-      pulse_target = pos_target * res / 1.8;
+      pulse_target += pos_target * res / 1.8;
     }
   }
 
