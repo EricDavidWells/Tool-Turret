@@ -7,6 +7,8 @@
 #define STEPPIN 3   // moves the motor one microstep per pulse
 #define DIRPIN 2    // specifies which direction the motor will turn 
 
+#define HALLPIN1 0
+
 int step_size = 6;
 int res = 8;
 
@@ -36,10 +38,17 @@ int tool_tot = 6;
 
 bool dir_toggle = 1;    // enter a zero or a one to switch the direction.  Or you can switch two wires around.  Don't let me tell you what to do.  Live your lfe man.
 
+
+float home_accel = 1000;
+float home_vel_max = 360;
+float home_backdrive = 0.45;
+
+float hall_angle = 15;
+long hall_pos_1 = 0;
+int hall_max_1 = 0;
+
 void setup() {
 
-
-  
   Serial.begin(115200);
   Serial.setTimeout(10);
   Serial.println("Connected");
@@ -71,6 +80,7 @@ void setup() {
   backstep_accel *= res;
   backstep_vel_max *= res;
 
+  home_turret();
 }
 
 void loop() {
@@ -128,6 +138,7 @@ void trapezoid(long p3, bool dir, float accel, float vel_max){
     if (micros() - pulse_timer > 1000000/vel){
       pulse(dir);   
       pulse_timer = micros();
+  
 //        Serial.print("position: ");
 //        Serial.print(pulse_count);
 //        Serial.print("  velocity: ");
@@ -139,6 +150,8 @@ void trapezoid(long p3, bool dir, float accel, float vel_max){
  Serial.print(pulse_count);  Serial.print(' '); Serial.println(pulse_target); 
   
 }
+
+
 
 void pulse(bool dir){
   digitalWrite(DIRPIN, dir != dir_toggle);
@@ -160,6 +173,7 @@ void pulse(bool dir){
 }
 
 void serial_read(){
+  
   
   while (Serial.available() > 0) {      // if there are bytes available in the serial port
     String incomingByte = Serial.readStringUntil('\n');     // read the line in the serial port as a string until '\n'       
@@ -211,8 +225,59 @@ void serial_read(){
     }
   }
 
-
-
-  
-
 }
+
+void home_turret(){
+  
+  pulse_count = 0;    // reset pulse count
+  hall_pos_1 = home_trapezoid((long)360*res/1.8, 1, home_accel, home_vel_max);    // do a full circle and find the position that has the max hall sensor reading
+  hall_pos_1 = 15*res/1.8;
+  trapezoid(hall_pos_1, 1, home_accel, home_vel_max);   // move to the hall sensor position
+  trapezoid((hall_angle+home_backdrive)*res/1.8, 0, home_accel, home_vel_max);    // move backwards the hall sensor offset plus an additional backdrive parameter
+  pulse_count = 0;
+  pulse_target = 0;
+}
+
+long home_trapezoid(long p3, bool dir, float accel, float vel_max){
+
+  trap_count = 0;
+  
+  float t1 = vel_max/accel;
+  float p1 = accel*pow(t1,2)/2;
+  float p2 = p3 - p1;
+
+  if (p1 > p3/2){
+    p1 = p3/2;
+    p2 = p3/2;
+  }
+  
+  long timer = micros();
+  long pulse_timer = micros();
+
+  pulse(dir);
+  
+  while(trap_count < p3){
+
+    if (trap_count < p1){
+      vel = accel  * sqrt(2.00*trap_count/accel);
+    }
+    if (trap_count > p2){
+      vel = accel * sqrt(2.00*(p3-trap_count)/accel);
+    }
+
+    if (micros() - pulse_timer > 1000000/vel){
+      pulse(dir);   
+      pulse_timer = micros();
+      int hall_1 = analogRead(HALLPIN1);
+      if (hall_1> hall_max_1){
+        hall_max_1 = hall_1;
+        hall_pos_1 = pulse_count;
+      }
+      
+    }
+  }
+  
+Serial.print(pulse_count);  Serial.print(' '); Serial.println(pulse_target); 
+return hall_pos_1;  
+}
+
