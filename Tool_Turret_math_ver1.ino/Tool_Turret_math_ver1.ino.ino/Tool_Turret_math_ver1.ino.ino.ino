@@ -34,6 +34,9 @@ float trap_count = 0;
 int tool_num = 1;
 int tool_tot = 6;
 
+// feature branch specific
+
+
 void setup() {
   
   Serial.begin(115200);
@@ -66,7 +69,8 @@ void setup() {
   tool_vel_max *= res;
   backstep_accel *= res;
   backstep_vel_max *= res;
-  
+
+  start_up();
 }
 
 void loop() {
