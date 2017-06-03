@@ -38,6 +38,7 @@ bool dir_toggle = 1;    // enter a zero or a one to switch the direction.  Or yo
 
 void setup() {
 
+
   
   Serial.begin(115200);
   Serial.setTimeout(10);
@@ -187,6 +188,7 @@ void serial_read(){
     }
 
     if (command == "t"){
+
 
       int rot = 0;
       int tool_target = value.toInt();
