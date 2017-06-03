@@ -7,8 +7,8 @@
 #define STEPPIN 3   // moves the motor one microstep per pulse
 #define DIRPIN 2    // specifies which direction the motor will turn 
 
-int step_size = 4;
-int res = 2;
+int step_size = 6;
+int res = 8;
 
 int M0_state;
 int M1_state;
@@ -18,9 +18,9 @@ float pos = 0;
 float vel = 0;
 
 float tool_accel = 1000;   // the constant acceleration during the trapezoidal velocity profile in deg/s^2
-float tool_vel_max = 360;    // the max velocity during the trapezoidal velocity profile in deg/s^2
+float tool_vel_max = 270;    // the max velocity during the trapezoidal velocity profile in deg/s^2
 
-float backstep = 4.5;    // the amount in degrees to step backwards into the pawl.  Make sure it lies on an exact multiple of the step size. e.g. if resolution is 2 make sure is a multiple of 0.9
+float backstep = 5.4;    // the amount in degrees to step backwards into the pawl.  Make sure it lies on an exact multiple of the step size. e.g. if resolution is 2 make sure is a multiple of 0.9
 float backstep_accel = 50;
 float backstep_vel_max = 100;
 
@@ -34,10 +34,10 @@ float trap_count = 0;
 int tool_num = 1;
 int tool_tot = 6;
 
-// feature branch specific
-
+bool dir_toggle = 1;    // enter a zero or a one to switch the direction.  Or you can switch two wires around.  Don't let me tell you what to do.  Live your lfe man.
 
 void setup() {
+
   
   Serial.begin(115200);
   Serial.setTimeout(10);
@@ -70,22 +70,23 @@ void setup() {
   backstep_accel *= res;
   backstep_vel_max *= res;
 
-  start_up();
 }
 
 void loop() {
   serial_read();
 
-  if ((int)pulse_target != pulse_count){
+  if ((long)pulse_target != pulse_count){
 
     pulse_target += backstep*res/1.8;
-    trapezoid(abs((int)pulse_target-pulse_count), 1, tool_accel, tool_vel_max);
+    trapezoid(abs((long)pulse_target-pulse_count), 1, tool_accel, tool_vel_max);
     pulse_target -= backstep*res/1.8;
-    trapezoid(abs((int)pulse_target-pulse_count), 0, backstep_accel, backstep_vel_max);
-    
+    trapezoid(abs((long)pulse_target-pulse_count), 0, backstep_accel, backstep_vel_max);   
   }
   
-  
+  if (pulse_count >= 2000000000){
+    pulse_count -= 2000000000;
+    pulse_target -= 2000000000;
+  }
   
 //  delayMicroseconds(2);
 //  digitalWrite(STEPPIN, LOW);
@@ -139,7 +140,7 @@ void trapezoid(long p3, bool dir, float accel, float vel_max){
 }
 
 void pulse(bool dir){
-  digitalWrite(DIRPIN, dir);
+  digitalWrite(DIRPIN, dir != dir_toggle);
   delayMicroseconds(4);
   digitalWrite(STEPPIN, HIGH);
   delayMicroseconds(4);
