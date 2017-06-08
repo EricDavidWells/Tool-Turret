@@ -1,3 +1,8 @@
+June 05, 2017
+
+* You want the hall sensor front facing the south pole of the magnet
+* Hall sensor wiring is in the hardware pictures section, looking from the front it goes VCC, Vout, GND
+
 May 30, 2017
 
 * Switched to calculating velocity using just math with no reliance on timers and float incrementers that accumulate error 

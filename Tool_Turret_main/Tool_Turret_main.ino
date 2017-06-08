@@ -7,6 +7,8 @@
 #define STEPPIN 3   // moves the motor one microstep per pulse
 #define DIRPIN 2    // specifies which direction the motor will turn 
 
+#define HALLPIN1 0
+
 int step_size = 6;
 int res = 8;
 
@@ -34,12 +36,20 @@ float trap_count = 0;
 int tool_num = 1;
 int tool_tot = 6;
 
-bool dir_toggle = 1;    // enter a zero or a one to switch the direction.  Or you can switch two wires around.  Don't let me tell you what to do.  Live your lfe man.
+bool dir_toggle = 1;    // enter a zero or a one to switch the direction.  Or you can switch two wires on the stepper  around.  Don't let me tell you what to do.  Live your lfe man.
+
+
+float home_accel = 1000;    
+float home_vel_max = 540;   // note that the max velocity will be limited due to the analog read function taking 100 microseconds
+float home_backdrive = 0.45;
+
+float hall_angle = 8.1;
+long hall_pos[2] = {0, 0};
+int hall_max_1 = 0;
+
 
 void setup() {
 
-
-  
   Serial.begin(115200);
   Serial.setTimeout(10);
   Serial.println("Connected");
@@ -71,6 +81,7 @@ void setup() {
   backstep_accel *= res;
   backstep_vel_max *= res;
 
+  home_turret();
 }
 
 void loop() {
@@ -95,7 +106,9 @@ void loop() {
 //  delayMicroseconds(2);
 //  digitalWrite(STEPPIN, HIGH);
 //  Serial.println("step");
-  
+//  int a = analogRead(0);
+//  Serial.println(a);
+//  delay(100);
 }
 
 void trapezoid(long p3, bool dir, float accel, float vel_max){
@@ -128,6 +141,7 @@ void trapezoid(long p3, bool dir, float accel, float vel_max){
     if (micros() - pulse_timer > 1000000/vel){
       pulse(dir);   
       pulse_timer = micros();
+  
 //        Serial.print("position: ");
 //        Serial.print(pulse_count);
 //        Serial.print("  velocity: ");
@@ -139,6 +153,8 @@ void trapezoid(long p3, bool dir, float accel, float vel_max){
  Serial.print(pulse_count);  Serial.print(' '); Serial.println(pulse_target); 
   
 }
+
+
 
 void pulse(bool dir){
   digitalWrite(DIRPIN, dir != dir_toggle);
@@ -160,6 +176,7 @@ void pulse(bool dir){
 }
 
 void serial_read(){
+  
   
   while (Serial.available() > 0) {      // if there are bytes available in the serial port
     String incomingByte = Serial.readStringUntil('\n');     // read the line in the serial port as a string until '\n'       
@@ -189,7 +206,6 @@ void serial_read(){
 
     if (command == "t"){
 
-
       int rot = 0;
       int tool_target = value.toInt();
       if (tool_target <= tool_tot && tool_target >= 1){
@@ -209,10 +225,88 @@ void serial_read(){
       pos_target = rot * 60;
       pulse_target += pos_target * res / 1.8;
     }
+
+    if (command == "home"){
+      home_turret();
+    }
   }
-
-
-
-  
+    
 
 }
+
+void home_turret(){
+  
+  pulse_count = 0;    // reset pulse count
+  home_trapezoid((long)360*res/1.8, 1, home_accel, home_vel_max);    // do a full circle and find the position that has the max hall sensor reading
+
+  if (abs(hall_pos[0] - hall_pos[1])*1.8/res > 185){
+    trapezoid(hall_pos[1], 1, home_accel, home_vel_max);   // move to the hall sensor position
+    Serial.println("option 1");
+  }
+  else{
+    trapezoid(hall_pos[0], 1, home_accel, home_vel_max);   // move to the hall sensor position
+    Serial.println("option 2");
+  }
+  
+  trapezoid((hall_angle+home_backdrive)*res/1.8, 0, home_accel, home_vel_max);    // move backwards the hall sensor offset plus an additional backdrive parameter
+  pulse_count = 0;
+  pulse_target = 0;
+}
+
+void home_trapezoid(long p3, bool dir, float accel, float vel_max){
+
+  int hall_flag = 0;
+  trap_count = 0;
+  
+  float t1 = vel_max/accel;
+  float p1 = accel*pow(t1,2)/2;
+  float p2 = p3 - p1;
+
+  if (p1 > p3/2){
+    p1 = p3/2;
+    p2 = p3/2;
+  }
+  
+  long timer = micros();
+  long pulse_timer = micros();
+
+  pulse(dir);
+  
+  while(trap_count < p3){
+
+    if (trap_count < p1){
+      vel = accel  * sqrt(2.00*trap_count/accel);
+    }
+    if (trap_count > p2){
+      vel = accel * sqrt(2.00*(p3-trap_count)/accel);
+    }
+
+    if (micros() - pulse_timer > 1000000/vel){
+      pulse(dir);   
+      pulse_timer = micros();  
+    }
+    
+      int hall_1 = analogRead(HALLPIN1);
+      if (hall_1 < 10 && hall_flag == 0){
+        hall_pos[0] = pulse_count;
+        hall_flag = 1;
+        Serial.println(hall_pos[0]);
+      }
+      else if (hall_flag == 1 && hall_1 > 10){
+        hall_flag = 2;
+      }
+      else if (hall_1 < 10 && hall_flag == 2){
+        hall_pos[1] = pulse_count;
+        hall_flag = 3;
+        Serial.println(hall_pos[1]);
+      }
+      else if (hall_flag == 3 && hall_1 > 10){
+        hall_flag = 4;
+      }
+//      Serial.print(pulse_count); Serial.print(' '); Serial.println(hall_1);
+  }
+  Serial.print("hall sensor locations: ");
+  Serial.print(hall_pos[0]*1.8/res);Serial.print(' ');
+  Serial.println(hall_pos[1]*1.8/res);  
+}
+
