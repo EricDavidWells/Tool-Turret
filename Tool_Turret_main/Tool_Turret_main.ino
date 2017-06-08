@@ -36,16 +36,17 @@ float trap_count = 0;
 int tool_num = 1;
 int tool_tot = 6;
 
-bool dir_toggle = 1;    // enter a zero or a one to switch the direction.  Or you can switch two wires around.  Don't let me tell you what to do.  Live your lfe man.
+bool dir_toggle = 1;    // enter a zero or a one to switch the direction.  Or you can switch two wires on the stepper  around.  Don't let me tell you what to do.  Live your lfe man.
 
 
-float home_accel = 1000;
-float home_vel_max = 360;
+float home_accel = 1000;    
+float home_vel_max = 540;   // note that the max velocity will be limited due to the analog read function taking 100 microseconds
 float home_backdrive = 0.45;
 
-float hall_angle = 15;
-long hall_pos_1 = 0;
+float hall_angle = 8.1;
+long hall_pos[2] = {0, 0};
 int hall_max_1 = 0;
+
 
 void setup() {
 
@@ -105,7 +106,9 @@ void loop() {
 //  delayMicroseconds(2);
 //  digitalWrite(STEPPIN, HIGH);
 //  Serial.println("step");
-  
+//  int a = analogRead(0);
+//  Serial.println(a);
+//  delay(100);
 }
 
 void trapezoid(long p3, bool dir, float accel, float vel_max){
@@ -203,7 +206,6 @@ void serial_read(){
 
     if (command == "t"){
 
-
       int rot = 0;
       int tool_target = value.toInt();
       if (tool_target <= tool_tot && tool_target >= 1){
@@ -223,23 +225,37 @@ void serial_read(){
       pos_target = rot * 60;
       pulse_target += pos_target * res / 1.8;
     }
+
+    if (command == "home"){
+      home_turret();
+    }
   }
+    
 
 }
 
 void home_turret(){
   
   pulse_count = 0;    // reset pulse count
-  hall_pos_1 = home_trapezoid((long)360*res/1.8, 1, home_accel, home_vel_max);    // do a full circle and find the position that has the max hall sensor reading
-  hall_pos_1 = 15*res/1.8;
-  trapezoid(hall_pos_1, 1, home_accel, home_vel_max);   // move to the hall sensor position
+  home_trapezoid((long)360*res/1.8, 1, home_accel, home_vel_max);    // do a full circle and find the position that has the max hall sensor reading
+
+  if (abs(hall_pos[0] - hall_pos[1])*1.8/res > 185){
+    trapezoid(hall_pos[1], 1, home_accel, home_vel_max);   // move to the hall sensor position
+    Serial.println("option 1");
+  }
+  else{
+    trapezoid(hall_pos[0], 1, home_accel, home_vel_max);   // move to the hall sensor position
+    Serial.println("option 2");
+  }
+  
   trapezoid((hall_angle+home_backdrive)*res/1.8, 0, home_accel, home_vel_max);    // move backwards the hall sensor offset plus an additional backdrive parameter
   pulse_count = 0;
   pulse_target = 0;
 }
 
-long home_trapezoid(long p3, bool dir, float accel, float vel_max){
+void home_trapezoid(long p3, bool dir, float accel, float vel_max){
 
+  int hall_flag = 0;
   trap_count = 0;
   
   float t1 = vel_max/accel;
@@ -267,17 +283,30 @@ long home_trapezoid(long p3, bool dir, float accel, float vel_max){
 
     if (micros() - pulse_timer > 1000000/vel){
       pulse(dir);   
-      pulse_timer = micros();
-      int hall_1 = analogRead(HALLPIN1);
-      if (hall_1> hall_max_1){
-        hall_max_1 = hall_1;
-        hall_pos_1 = pulse_count;
-      }
-      
+      pulse_timer = micros();  
     }
+    
+      int hall_1 = analogRead(HALLPIN1);
+      if (hall_1 < 10 && hall_flag == 0){
+        hall_pos[0] = pulse_count;
+        hall_flag = 1;
+        Serial.println(hall_pos[0]);
+      }
+      else if (hall_flag == 1 && hall_1 > 10){
+        hall_flag = 2;
+      }
+      else if (hall_1 < 10 && hall_flag == 2){
+        hall_pos[1] = pulse_count;
+        hall_flag = 3;
+        Serial.println(hall_pos[1]);
+      }
+      else if (hall_flag == 3 && hall_1 > 10){
+        hall_flag = 4;
+      }
+//      Serial.print(pulse_count); Serial.print(' '); Serial.println(hall_1);
   }
-  
-Serial.print(pulse_count);  Serial.print(' '); Serial.println(pulse_target); 
-return hall_pos_1;  
+  Serial.print("hall sensor locations: ");
+  Serial.print(hall_pos[0]*1.8/res);Serial.print(' ');
+  Serial.println(hall_pos[1]*1.8/res);  
 }
 
