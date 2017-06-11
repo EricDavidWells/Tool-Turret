@@ -104,7 +104,7 @@ void setup() {
 }
 
 void loop() {
-  serial_read();
+//  serial_read();
   int tool_target = tool_read();
 
   if (tool_target != tool_num1 && tool_target != tool_num2){  
@@ -317,6 +317,17 @@ void home_turret(){
   trapezoid((hall_angle+home_backdrive)*res/1.8, 0, home_accel, home_vel_max);    // move backwards the hall sensor offset plus an additional backdrive parameter
   pulse_count = 0;
   pulse_target = 0;
+
+  if (abs(hall_pos[0] - hall_pos[1])*1.8/res > 55 && abs(hall_pos[0] - hall_pos[1])*1.8/res < 65){
+    tool_angle1 = 60;
+  }
+  else if (abs(hall_pos[0] - hall_pos[1])*1.8/res > 40 && abs(hall_pos[0] - hall_pos[1])*1.8/res < 50){
+    tool_angle1 = 45;
+  }
+  else if (abs(hall_pos[0] - hall_pos[1])*1.8/res > 85 && abs(hall_pos[0] - hall_pos[1])*1.8/res < 95){
+    tool_angle1 = 90;
+  }
+  
 }
 
 void home_trapezoid(long p3, bool dir, float accel, float vel_max){
