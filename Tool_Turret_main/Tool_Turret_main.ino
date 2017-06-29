@@ -15,7 +15,7 @@
 #define TOOLPIN3 11
 #define TOOLPIN4 12
 
-#define ALLCLEARPIN A2
+#define ALLCLEARPIN A4
 
 #define DIRPIN2 A2
 #define STEPPIN2 A3
@@ -58,13 +58,15 @@ int tool_angle2 = 60;
 int tool_target = 1;
 
 bool dir_toggle = 1;    // enter a zero or a one to switch the direction.  Or you can switch two wires on the stepper  around.  Don't let me tell you what to do.  Live your lfe man.
-bool dir_toggle_2 = 0;
+bool dir_toggle_2 = 1;
 
 float home_accel = 1000;    
 float home_vel_max = 1000;   // note that the max velocity will be limited due to the analog read function taking 100 microseconds
 
 float hall_angle_1 = 9;
+float hall_angle_2 = 15.3;
 long hall_pos[2] = {0, 0};
+long hall_pos_2[2] = {0, 0};
 int hall_max_1 = 0;
 
 
@@ -108,23 +110,24 @@ void setup() {
   backstep_vel_max *= res;
 
 //  home_turret(1);
-tool_num2 = tool_tot1;
+tool_num2 = tool_tot1 + 1;
 }
 
 void loop() {
   
-
   serial_read();
   int tool_target = tool_read();
 
   if (tool_target != tool_num1 && tool_target != tool_num2){  
-    int rot = 0;
+
     digitalWrite(ALLCLEARPIN, LOW);   // write all clear pin low while moving tools
+    int rot = 0;
+    
    
     if (tool_target <= tool_tot1 && tool_target >= 1){    // if tool is meant for first turret
       rot = tool_target - tool_num1;    // calculate number of tool rotations to do
       if (rot < 0){
-        rot += tool_tot1;
+        rot += tool_tot1;  
       } 
     
     pulse_target += rot * tool_angle1 * res / 1.8;    // calculate new target position
@@ -228,11 +231,9 @@ void pulse(bool dir, int turret_no){
     
     trap_count += 1;
     if (dir == 1){
-  //    pos += 1.8/res;
       pulse_count += 1;
     }
     else{
-  //    pos -= 1.8/res;
       pulse_count -= 1;
     }
   }
@@ -245,15 +246,12 @@ void pulse(bool dir, int turret_no){
     delayMicroseconds(4);
     trap_count += 1;
     if (dir == 1){
-  //    pos += 1.8/res;
       pulse_count_2 += 1;
     }
     else{
-  //    pos -= 1.8/res;
       pulse_count_2 -= 1;
     }
   }
-  
 }
 
 int tool_read(){
@@ -262,7 +260,15 @@ int tool_read(){
   int t3 = digitalRead(TOOLPIN3)==0;
   int t4 = digitalRead(TOOLPIN4)==0;
   int tool_num = t1 + (t2<<1) + (t3<<2) + (t4<<3) + 1;
-  
+
+  if (tool_num != tool_num1 && tool_num != tool_num2){
+    delay(5);
+    t1 = digitalRead(TOOLPIN1)==0;
+    t2 = digitalRead(TOOLPIN2)==0;
+    t3 = digitalRead(TOOLPIN3)==0;
+    t4 = digitalRead(TOOLPIN4)==0;
+    tool_num = t1 + (t2<<1) + (t3<<2) + (t4<<3) + 1;
+  }
 //  Serial.print(t1);
 //  Serial.print(t2);
 //  Serial.print(t3);
@@ -318,6 +324,10 @@ void serial_read(){
 void home_turret(int turret_no){
   
   pulse_count = 0;    // reset pulse count
+  pulse_count_2 = 0;
+  pulse_target = 0;
+  pulse_target_2 = 0;
+  
   home_trapezoid((long)360*res/1.8, 1, home_accel, home_vel_max, turret_no);    // do a full circle and find the position that has the max hall sensor reading
 
   if (abs(hall_pos[0] - hall_pos[1])*1.8/res > 185){
@@ -328,10 +338,24 @@ void home_turret(int turret_no){
     trapezoid(hall_pos[0], 1, home_accel, home_vel_max, turret_no);   // move to the hall sensor position
     Serial.println("option 2");
   }
-  
+
+  if (turret_no == 1){
   trapezoid((hall_angle_1)*res/1.8, 0, home_accel, home_vel_max, turret_no);    // move backwards the hall sensor offset plus an additional backdrive parameter
+  }
+  if (turret_no == 2){
+  trapezoid((hall_angle_2)*res/1.8, 0, home_accel, home_vel_max, turret_no);    // move backwards the hall sensor offset plus an additional backdrive parameter
+  }
+  
   pulse_count = 0;
   pulse_target = 0;
+  pulse_count_2 = 0;
+  pulse_target_2 = 0;
+  if (turret_no == 1){
+    tool_num1 = 1;
+  }
+  if (turret_no == 2){
+    tool_num2 = tool_tot1 + 1;
+  }
 
   if (abs(hall_pos[0] - hall_pos[1])*1.8/res > 55 && abs(hall_pos[0] - hall_pos[1])*1.8/res < 65){
     tool_angle1 = 60;
@@ -383,21 +407,32 @@ void home_trapezoid(long p3, bool dir, float accel, float vel_max, int turret_no
       
       if (turret_no == 1){
         hall_1 = analogRead(HALLPIN1);
-      }
-      
-      if (turret_no == 2){
+      }    
+      else if (turret_no == 2){
         hall_1 = analogRead(HALLPIN2);
       }
-      if (hall_1 < 10 && hall_flag == 0){
+      
+      if (hall_1 < 30 && hall_flag == 0){
+        if (turret_no == 1){
         hall_pos[0] = pulse_count;
+        }
+        else if (turret_no == 2){
+        hall_pos[0] = pulse_count_2;
+        }
         hall_flag = 1;
+        
         Serial.println(hall_pos[0]);
       }
-      else if (hall_flag == 1 && hall_1 > 10){
+      else if (hall_flag == 1 && hall_1 > 30){
         hall_flag = 2;
       }
-      else if (hall_1 < 10 && hall_flag == 2){
+      else if (hall_1 < 30 && hall_flag == 2){
+        if (turret_no == 1){
         hall_pos[1] = pulse_count;
+        }
+        else if (turret_no == 2){
+        hall_pos[1] = pulse_count_2;
+        }
         hall_flag = 3;
         Serial.println(hall_pos[1]);
       }
@@ -408,6 +443,6 @@ void home_trapezoid(long p3, bool dir, float accel, float vel_max, int turret_no
   }
   Serial.print("hall sensor locations for turret no "); Serial.print(turret_no); Serial.print(": ");
   Serial.print(hall_pos[0]*1.8/res);Serial.print(' ');
-  Serial.println(hall_pos[1]*1.8/res);  
+  Serial.println(hall_pos[1]*1.8/res);
 }
 
