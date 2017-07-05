@@ -3,22 +3,22 @@
 #define M1PIN 7
 #define M2PIN 6
 #define RESETPIN 5  // must be HIGH in order for driver to be turned on
-#define SLEEPPIN 4  // must be HIGH in order for driver to be turned on
+#define SLEEPPIN 9  // must be HIGH in order for driver to be turned on
 #define STEPPIN1 3   // moves the motor one microstep per pulse
 #define DIRPIN1 2    // specifies which direction the motor will turn 
+
+#define DIRPIN2 10
+#define STEPPIN2 11
 
 #define HALLPIN1 0
 #define HALLPIN2 1
 
-#define TOOLPIN1 9
-#define TOOLPIN2 10
-#define TOOLPIN3 11
-#define TOOLPIN4 12
+#define TOOLPIN1 12
+#define TOOLPIN2 13
+#define TOOLPIN3 A2
+#define TOOLPIN4 A3
 
 #define ALLCLEARPIN A4
-
-#define DIRPIN2 A2
-#define STEPPIN2 A3
 
 int step_size = 6;
 int res = 8;
@@ -114,6 +114,11 @@ tool_num2 = tool_tot1 + 1;
 }
 
 void loop() {
+
+//  int a = analogRead(HALLPIN1);
+//  int b = analogRead(HALLPIN2);
+//  Serial.print(a);Serial.print(" ");Serial.println(b);
+//  delay(100);
   
   serial_read();
   int tool_target = tool_read();
@@ -313,7 +318,8 @@ void serial_read(){
     }
 
     if (command == "home"){
-      home_turret(value.toInt());
+      
+      home_turret(constrain(value.toInt(), 1, 2));
     }
   }
     
