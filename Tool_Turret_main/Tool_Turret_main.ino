@@ -69,6 +69,7 @@ long hall_pos[2] = {0, 0};
 long hall_pos_2[2] = {0, 0};
 int hall_max_1 = 0;
 
+int turret_mode = 2;
 
 void setup() {
 
@@ -84,12 +85,22 @@ void setup() {
   pinMode(SLEEPPIN, OUTPUT);
   pinMode(STEPPIN1, OUTPUT);
   pinMode(DIRPIN1, OUTPUT);
-  pinMode(ALLCLEARPIN, OUTPUT);
-  pinMode(TOOLPIN1, INPUT_PULLUP);
-  pinMode(TOOLPIN2, INPUT_PULLUP);
-  pinMode(TOOLPIN3, INPUT_PULLUP);
-  pinMode(TOOLPIN4, INPUT_PULLUP);
   
+
+  if (turret_mode == 1){
+    pinMode(TOOLPIN1, INPUT_PULLUP);
+    pinMode(TOOLPIN2, INPUT_PULLUP);
+    pinMode(TOOLPIN3, INPUT_PULLUP);
+    pinMode(TOOLPIN4, INPUT_PULLUP);
+    pinMode(ALLCLEARPIN, OUTPUT);
+  }
+  if (turret_mode == 2){
+    pinMode(TOOLPIN1, OUTPUT);
+    pinMode(TOOLPIN2, OUTPUT);
+    pinMode(TOOLPIN3, OUTPUT);
+    pinMode(TOOLPIN4, OUTPUT);
+    pinMode(ALLCLEARPIN, INPUT);
+  }
   digitalWrite(DIRPIN1, HIGH);
 //  digitalWrite(ENABLEPIN, LOW);
   digitalWrite(RESETPIN, HIGH);
@@ -121,62 +132,95 @@ void loop() {
 //  delay(100);
   
   serial_read();
-  int tool_target = tool_read();
 
-  if (tool_target != tool_num1 && tool_target != tool_num2){  
-
-    digitalWrite(ALLCLEARPIN, LOW);   // write all clear pin low while moving tools
-    int rot = 0;
-    
-   
-    if (tool_target <= tool_tot1 && tool_target >= 1){    // if tool is meant for first turret
-      rot = tool_target - tool_num1;    // calculate number of tool rotations to do
-      if (rot < 0){
-        rot += tool_tot1;  
-      } 
-    
-    pulse_target += rot * tool_angle1 * res / 1.8;    // calculate new target position
-    
-    pulse_target += backstep*res/1.8;     // add on the overshoot amount
-    trapezoid(abs((long)pulse_target-pulse_count), 1, tool_accel, tool_vel_max, 1);    // move to the target position + overshoot amount
-    pulse_target -= backstep*res/1.8;   // subtract the overshoot amount
-    trapezoid(abs((long)pulse_target-pulse_count), 0, backstep_accel, backstep_vel_max, 1);    // move back the overshoot amount  
-
-    tool_num1 += rot;   // update the tool position of the turret
-    if (tool_num1 > tool_tot1){
-      tool_num1 -= tool_tot1;        
-    }
-    
-    Serial.print("Tool number 1: ");
-    Serial.println(tool_num1);  
-    }
-
-    if (tool_target <= tool_tot2+tool_tot1 && tool_target > tool_tot1){    // if tool is meant for second turret
-      rot = tool_target - tool_num2;    // calculate number of tool rotations to do
-      if (rot < 0){
-        rot += tool_tot2;
-      } 
-    Serial.print("rot: ");
-    pulse_target_2 += rot * tool_angle2 * res / 1.8;    // calculate new target position
-    
-    pulse_target_2 += backstep*res/1.8;     // add on the overshoot amount
-    trapezoid(abs((long)pulse_target_2-pulse_count_2), 1, tool_accel, tool_vel_max, 2);    // move to the target position + overshoot amount
-    pulse_target_2 -= backstep*res/1.8;   // subtract the overshoot amount
-    trapezoid(abs((long)pulse_target_2-pulse_count_2), 0, backstep_accel, backstep_vel_max, 2);    // move back the overshoot amount  
-
-    tool_num2 += rot;   // update the tool position of the turret
-    if (tool_num2 > tool_tot2 + tool_tot1){
-      tool_num2 -= tool_tot2;        
-    }
-    
-    Serial.print("Tool number 2: ");
-    Serial.println(tool_num2);  
-    }
-    
-  digitalWrite(ALLCLEARPIN, HIGH);    // write all clear pin high when move is completed 
+  if (turret_mode == 1){
+    tool_target = tool_read();
   }
+  if (turret_mode == 2) {
+    tool_target = turret_cycle(1000);
+  }
+
+    if (tool_target != tool_num1 && tool_target != tool_num2){  
+
+      if (turret_mode == 1){
+      digitalWrite(ALLCLEARPIN, LOW);   // write all clear pin low while moving tools
+      }
+      int rot = 0;
+      
+     
+      if (tool_target <= tool_tot1 && tool_target >= 1){    // if tool is meant for first turret
+        rot = tool_target - tool_num1;    // calculate number of tool rotations to do
+        if (rot < 0){
+          rot += tool_tot1;  
+        } 
+      
+      pulse_target += rot * tool_angle1 * res / 1.8;    // calculate new target position
+      
+      pulse_target += backstep*res/1.8;     // add on the overshoot amount
+      trapezoid(abs((long)pulse_target-pulse_count), 1, tool_accel, tool_vel_max, 1);    // move to the target position + overshoot amount
+      pulse_target -= backstep*res/1.8;   // subtract the overshoot amount
+      trapezoid(abs((long)pulse_target-pulse_count), 0, backstep_accel, backstep_vel_max, 1);    // move back the overshoot amount  
   
+      tool_num1 += rot;   // update the tool position of the turret
+      if (tool_num1 > tool_tot1){
+        tool_num1 -= tool_tot1;        
+      }
+      
+      Serial.print("Tool number 1: ");
+      Serial.println(tool_num1);  
+      }
   
+      if (tool_target <= tool_tot2+tool_tot1 && tool_target > tool_tot1){    // if tool is meant for second turret
+        rot = tool_target - tool_num2;    // calculate number of tool rotations to do
+        if (rot < 0){
+          rot += tool_tot2;
+        } 
+      Serial.print("rot: ");
+      pulse_target_2 += rot * tool_angle2 * res / 1.8;    // calculate new target position
+      
+      pulse_target_2 += backstep*res/1.8;     // add on the overshoot amount
+      trapezoid(abs((long)pulse_target_2-pulse_count_2), 1, tool_accel, tool_vel_max, 2);    // move to the target position + overshoot amount
+      pulse_target_2 -= backstep*res/1.8;   // subtract the overshoot amount
+      trapezoid(abs((long)pulse_target_2-pulse_count_2), 0, backstep_accel, backstep_vel_max, 2);    // move back the overshoot amount  
+  
+      tool_num2 += rot;   // update the tool position of the turret
+      if (tool_num2 > tool_tot2 + tool_tot1){
+        tool_num2 -= tool_tot2;        
+      }
+      
+      Serial.print("Tool number 2: ");
+      Serial.println(tool_num2);  
+      }
+      
+    if (turret_mode == 1){
+      digitalWrite(ALLCLEARPIN, HIGH);   // write all clear pin low while moving tools
+    }
+    }
+
+  
+}
+
+int turret_cycle(int delay_time){
+  static int t=0;
+  while(digitalRead(ALLCLEARPIN) == LOW){
+    t = (t+1)%(tool_tot1 + tool_tot2);    
+    bool t1 = bitRead(t, 0);
+    bool t2 = bitRead(t, 1);
+    bool t3 = bitRead(t, 2);
+    bool t4 = bitRead(t, 3);
+    digitalWrite(TOOLPIN1, t1);
+    digitalWrite(TOOLPIN2, t2);
+    digitalWrite(TOOLPIN3, t3);
+    digitalWrite(TOOLPIN4, t4);
+
+//    Serial.print(t); Serial.print(' ');
+//    Serial.print(t1); Serial.print(t2); Serial.print(t3); Serial.println(t4);
+    
+    delay(delay_time);
+  }
+  int tool_num = t + 1;
+  Serial.println(t);
+  return tool_num;
 }
 
 void trapezoid(long p3, bool dir, float accel, float vel_max, int turret_no){
