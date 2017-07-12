@@ -1,85 +1,91 @@
 //#define ENABLEPIN 9 // must be LOW in order for driver to be turned on
-#define M0PIN 8
-#define M1PIN 7
-#define M2PIN 6
+#define M0PIN 8 // determines microstep size
+#define M1PIN 7 // determines microstep size
+#define M2PIN 6 // determines microstep size
 #define RESETPIN 5  // must be HIGH in order for driver to be turned on
 #define SLEEPPIN 9  // must be HIGH in order for driver to be turned on
+
+#define DIRPIN1 2    // specifies which direction the first turret will turn 
 #define STEPPIN1 3   // moves the motor one microstep per pulse
-#define DIRPIN1 2    // specifies which direction the motor will turn 
+#define DIRPIN2 10  // specifies which direction the first turret will turn
+#define STEPPIN2 11 // moves the motor one microstep per pulse
 
-#define DIRPIN2 10
-#define STEPPIN2 11
+#define HALLPIN1 0  // analog input pin for the first turret hall sensor
+#define HALLPIN2 1  // analog input pin for the first turret hall sensor
 
-#define HALLPIN1 0
-#define HALLPIN2 1
-
-#define TOOLPIN1 12
+#define TOOLPIN1 12 // binary input pins
 #define TOOLPIN2 13
 #define TOOLPIN3 A2
 #define TOOLPIN4 A3
 
-#define ALLCLEARPIN A4
+#define SIGNALPIN A4  // signal pin to MASSO
 
-int step_size = 6;
-int res = 8;
+int step_size = 6;  // this is the value corresponding to microstep size, see the table in the README file
+int res = 8;  //  microstep resolution
 
 int M0_state;
 int M1_state;
 int M2_state;
 
+
 float pos = 0;
 float vel = 0;
+float pos_target = 0; // keeps track of position
+float pulse_timer = 0;  // keeps track of timer during trapezoidal
+long pulse_count = 0;   // keeps track of total pulse count for first turret
+float pulse_target = 0;   // keeps track of the target pulse count for first turret
+
+long pulse_count_2 = 0;   // keeps track of pulse count for second turret
+float pulse_target_2 = 0;  // keeps track of pulse target for second turret
+
+float trap_count = 0;   // used internally during the trapezoidal profile movement
+
+long hall_pos[2] = {0, 0};    // stores the locations of the hall sensors for the first turret
+long hall_pos_2[2] = {0, 0};    // stores the locations of the hall sensors for the second turret
+
+// VARIABLES TO MESS AROUND WITH
+int tool_num1 = 1;  // initial tool number for turret 1
+int tool_tot1 = 6;  // total number of tools in turret 1
+int tool_angle1 = 60; // angle between tools in turret 1  
+
+int tool_num2 = 7;  // initial tool number for turret 2 (must be tool_tot1 + 1)
+int tool_tot2 = 6;  // total number of tools in turret 2
+int tool_angle2 = 60;   // angle between tools in turret 2
+
+int tool_target = 1;  // keeps track of the target tool to be at
+
+bool dir_toggle = 1;    // enter a zero or a one to switch the direction on first turret.  Or you can switch two wires on the stepper  around.  Don't let me tell you what to do.  Live your lfe man.
+bool dir_toggle_2 = 1;    // enter a zero or a one to switch the direction on second turret.  Or you can switch two wires on the stepper  around.  Don't let me tell you what to do.  Live your lfe man.
 
 float tool_accel = 1000;   // the constant acceleration during the trapezoidal velocity profile in deg/s^2
-float tool_vel_max = 270;    // the max velocity during the trapezoidal velocity profile in deg/s^2
+float tool_vel_max = 540;    // the max velocity during the trapezoidal velocity profile in deg/s
 
-float backstep = 5.4;    // the amount in degrees to step backwards into the pawl.  Make sure it lies on an exact multiple of the step size. e.g. if resolution is 2 make sure is a multiple of 0.9
-float backstep_accel = 50;
-float backstep_vel_max = 100;
+float backstep = 5.4;    // the amount in degrees to step backwards into the pawl during tool changes.
+float backstep_accel = 50;  // the acceleration during the backstep in deg/s^2
+float backstep_vel_max = 100; // velocity during the backstep in deg/s
 
-float pos_target = 0;
-float pulse_timer = 0;
-long pulse_count = 0;
-float pulse_target = 0;
-
-long pulse_count_2 = 0;
-float pulse_target_2 = 0;
-
-float trap_count = 0;
-
-int tool_num1 = 1;
-int tool_tot1 = 6;
-int tool_angle1 = 60;
-
-int tool_num2 = 7;
-int tool_tot2 = 6;
-int tool_angle2 = 60;
-
-int tool_target = 1;
-
-bool dir_toggle = 1;    // enter a zero or a one to switch the direction.  Or you can switch two wires on the stepper  around.  Don't let me tell you what to do.  Live your lfe man.
-bool dir_toggle_2 = 1;
-
-float home_accel = 1000;    
+float home_accel = 1000;    // the acceleration during the homing sequence in deg/s^2
 float home_vel_max = 1000;   // note that the max velocity will be limited due to the analog read function taking 100 microseconds
 
-float home_offset_1 = 0;    // after doing the homing 360 degrees, the turret will go to the hall sensor location plus this home_offset value, than backdrive by hall_angle value
-float home_offset_2 = 30;
+// after doing the homing 360 degrees, the turret will go to the hall sensor location plus this home_offset value, than backdrive by hall_angle value
+// takes some tuning to get the stepper to backdrive into the pawl the proper amount
+float home_offset_1 = 0;    
+float home_offset_2 = 30;   
 float hall_angle_1 = 9;
 float hall_angle_2 = 16.2;
-long hall_pos[2] = {0, 0};
-long hall_pos_2[2] = {0, 0};
-int hall_max_1 = 0;
 
-int turret_mode = 2;
+int turret_mode = 2;    // the turret mode.  Set to 1 for reading the binary output from the MASSO.  Set to 2 for cycling the binary output to the MASSO and waiting for a signal to stop
 
 void setup() {
 
-  Serial.begin(115200);
+  // set up serial communication
+  Serial.begin(115200);   
   Serial.setTimeout(10);
   Serial.println("Connected");
   
 //  pinMode(ENABLEPIN, OUTPUT);
+
+  // set up pins for stepper driver
   pinMode(M0PIN, OUTPUT);
   pinMode(M1PIN, OUTPUT);
   pinMode(M2PIN, OUTPUT);
@@ -88,42 +94,52 @@ void setup() {
   pinMode(STEPPIN1, OUTPUT);
   pinMode(DIRPIN1, OUTPUT);
   
-
+  // set binary tool pins to input for mode 1
   if (turret_mode == 1){
     pinMode(TOOLPIN1, INPUT_PULLUP);
     pinMode(TOOLPIN2, INPUT_PULLUP);
     pinMode(TOOLPIN3, INPUT_PULLUP);
     pinMode(TOOLPIN4, INPUT_PULLUP);
-    pinMode(ALLCLEARPIN, OUTPUT);
+    pinMode(SIGNALPIN, OUTPUT);
   }
+
+  // set binary tool pins to output for mode 2
   if (turret_mode == 2){
     pinMode(TOOLPIN1, OUTPUT);
     pinMode(TOOLPIN2, OUTPUT);
     pinMode(TOOLPIN3, OUTPUT);
     pinMode(TOOLPIN4, OUTPUT);
-    pinMode(ALLCLEARPIN, INPUT);
+    pinMode(SIGNALPIN, INPUT);
   }
+
+  // set up pins for stepper driver
+  
   digitalWrite(DIRPIN1, HIGH);
 //  digitalWrite(ENABLEPIN, LOW);
   digitalWrite(RESETPIN, HIGH);
   digitalWrite(SLEEPPIN, HIGH);
-  digitalWrite(ALLCLEARPIN, LOW);
-  
+  digitalWrite(SIGNALPIN, LOW);
+
+  // determine the binary orientation for the desired microstep size
   M0_state = bitRead(step_size, 2);
   M1_state = bitRead(step_size, 1);
   M2_state = bitRead(step_size, 0);
-  
+
+  // set the microstep setting pins to the desired microstep position
   digitalWrite(M0PIN, M0_state);
   digitalWrite(M1PIN, M1_state);
   digitalWrite(M2PIN, M2_state);
 
-  tool_accel *= res;
-  tool_vel_max *= res;
-  backstep_accel *= res;
-  backstep_vel_max *= res;
+  // change all values to microsteps instead of degrees for the trapezoid function
+  tool_accel *= res/1.8;
+  tool_vel_max *= res/1.8;
+  backstep_accel *= res/1.8;
+  backstep_vel_max *= res/1.8;
 
-//  home_turret(1);
-tool_num2 = tool_tot1 + 1;
+  // home both turrets
+  home_turret(1);
+  home_turret(2);
+
 }
 
 void loop() {
@@ -140,7 +156,7 @@ void loop() {
     if (tool_target != tool_num1 && tool_target != tool_num2){  // if the tool target has changed, move to the new tool location
 
       if (turret_mode == 1){
-      digitalWrite(ALLCLEARPIN, LOW);   // write all clear pin low while moving tools for mode 1
+      digitalWrite(SIGNALPIN, LOW);   // write all clear pin low while moving tools for mode 1
       }
       int rot = 0;
       
@@ -189,7 +205,7 @@ void loop() {
       }
       
     if (turret_mode == 1){
-      digitalWrite(ALLCLEARPIN, HIGH);   // write all clear pin low while moving tools
+      digitalWrite(SIGNALPIN, HIGH);   // write all clear pin low while moving tools
     }
     }
 
@@ -198,24 +214,21 @@ void loop() {
 
 int turret_cycle(int delay_time){
   // cycle the desired tool number via four pins acting as a single binary number (High = 1, Low = 0) for the MASSO controller to read.  When the
-  // MASSO controller turns the ALLCLEARPIN to High, the arduino stops cycling and moves the turret to the desired location
+  // MASSO controller turns the SIGNALPIN to High, the arduino stops cycling and moves the turret to the desired location
   
   static int t=0;
-  while(digitalRead(ALLCLEARPIN) == LOW){
-    t = (t+1)%(tool_tot1 + tool_tot2);    
-    bool t1 = bitRead(t, 0);
+  while(digitalRead(SIGNALPIN) == LOW){
+    t = (t+1)%(tool_tot1 + tool_tot2);   // cycle tool number 
+    bool t1 = bitRead(t, 0);    // convert tool number to binary
     bool t2 = bitRead(t, 1);
     bool t3 = bitRead(t, 2);
     bool t4 = bitRead(t, 3);
-    digitalWrite(TOOLPIN1, t1);
+    digitalWrite(TOOLPIN1, t1);   // write binary to tool pins
     digitalWrite(TOOLPIN2, t2);
     digitalWrite(TOOLPIN3, t3);
     digitalWrite(TOOLPIN4, t4);
-
-//    Serial.print(t); Serial.print(' ');
-//    Serial.print(t1); Serial.print(t2); Serial.print(t3); Serial.println(t4);
-    Serial.println(t);
-    delay(delay_time);
+    
+    delay(delay_time);  // add delay
   }
   int tool_num = t + 1;
   return tool_num;
@@ -255,7 +268,7 @@ void trapezoid(long p3, bool dir, float accel, float vel_max, int turret_no){
     }
   }
   
- Serial.print(pulse_count);  Serial.print(' '); Serial.println(pulse_target); 
+// Serial.print(pulse_count);  Serial.print(' '); Serial.println(pulse_target); 
   
 }
 
@@ -414,13 +427,34 @@ void home_turret(int turret_no){
 
   // detect number of tools in turret, currently supports 4, 6, and 8 (this is untested)
   if (abs(hall_pos[0] - hall_pos[1])*1.8/res > 55 && abs(hall_pos[0] - hall_pos[1])*1.8/res < 65){
-    tool_angle1 = 60;
+    if (turret_no == 1){
+      tool_angle1 = 60;
+      tool_tot1 = 6;
+    }
+    if (turret_no == 2){
+      tool_angle2 = 60;
+      tool_tot2 = 6;
+    }
   }
   else if (abs(hall_pos[0] - hall_pos[1])*1.8/res > 40 && abs(hall_pos[0] - hall_pos[1])*1.8/res < 50){
-    tool_angle1 = 45;
+    if (turret_no == 1){
+      tool_angle1 = 45;
+      tool_tot1 = 8;
+    }
+    if (turret_no == 2){
+      tool_angle2 = 45;
+      tool_tot2 = 8;
+    }
   }
   else if (abs(hall_pos[0] - hall_pos[1])*1.8/res > 85 && abs(hall_pos[0] - hall_pos[1])*1.8/res < 95){
-    tool_angle1 = 90;
+    if (turret_no == 1){
+      tool_angle1 = 90;
+      tool_tot1 = 4;
+    }
+    if (turret_no == 2){
+      tool_angle2 = 90;
+      tool_tot2 = 4;
+    }
   }
   
 }
