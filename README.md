@@ -1,21 +1,6 @@
-June 05, 2017
+Arduino Controlled Tool Turret for a Miniature Lathe:
 
-* You want the hall sensor front facing the south pole of the magnet
-* Hall sensor wiring is in the hardware pictures section, looking from the front it goes VCC, Vout, GND
-
-May 30, 2017
-
-* Switched to calculating velocity using just math with no reliance on timers and float incrementers that accumulate error 
-* Timer is still used to time the pulses but not calculate velocity
-* Works perfectly now!
-
-May 21, 2017
-
-* Couldn't get it to turn any motor forever, it just squealed.  
-** Combination of turning the current limiter DOWN and turning the voltage on power supply up made it work
-** Moving voltage to 24V worked
-** Moving voltage to 12V didn't work unless current was limited.  Idk why this is... Only thing I can think of is that too much current heats up the internal wire too much
-* Current limiter, measure current 
+Microstepping Table
 
 M1M1M2	microstep  int
 
