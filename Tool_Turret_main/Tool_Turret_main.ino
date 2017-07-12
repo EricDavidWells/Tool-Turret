@@ -63,8 +63,10 @@ bool dir_toggle_2 = 1;
 float home_accel = 1000;    
 float home_vel_max = 1000;   // note that the max velocity will be limited due to the analog read function taking 100 microseconds
 
+float home_offset_1 = 0;    // after doing the homing 360 degrees, the turret will go to the hall sensor location plus this home_offset value, than backdrive by hall_angle value
+float home_offset_2 = 30;
 float hall_angle_1 = 9;
-float hall_angle_2 = 15.3;
+float hall_angle_2 = 16.2;
 long hall_pos[2] = {0, 0};
 long hall_pos_2[2] = {0, 0};
 int hall_max_1 = 0;
@@ -125,34 +127,28 @@ tool_num2 = tool_tot1 + 1;
 }
 
 void loop() {
-
-//  int a = analogRead(HALLPIN1);
-//  int b = analogRead(HALLPIN2);
-//  Serial.print(a);Serial.print(" ");Serial.println(b);
-//  delay(100);
   
-  serial_read();
+  serial_read();  // read serial input
 
   if (turret_mode == 1){
-    tool_target = tool_read();
+    tool_target = tool_read();  // read desired tool from binary pins
   }
   if (turret_mode == 2) {
-    tool_target = turret_cycle(1000);
+    tool_target = turret_cycle(100);  // cycle desired tool from binary pins
   }
 
-    if (tool_target != tool_num1 && tool_target != tool_num2){  
+    if (tool_target != tool_num1 && tool_target != tool_num2){  // if the tool target has changed, move to the new tool location
 
       if (turret_mode == 1){
-      digitalWrite(ALLCLEARPIN, LOW);   // write all clear pin low while moving tools
+      digitalWrite(ALLCLEARPIN, LOW);   // write all clear pin low while moving tools for mode 1
       }
       int rot = 0;
       
-     
       if (tool_target <= tool_tot1 && tool_target >= 1){    // if tool is meant for first turret
         rot = tool_target - tool_num1;    // calculate number of tool rotations to do
         if (rot < 0){
           rot += tool_tot1;  
-        } 
+        }
       
       pulse_target += rot * tool_angle1 * res / 1.8;    // calculate new target position
       
@@ -201,6 +197,9 @@ void loop() {
 }
 
 int turret_cycle(int delay_time){
+  // cycle the desired tool number via four pins acting as a single binary number (High = 1, Low = 0) for the MASSO controller to read.  When the
+  // MASSO controller turns the ALLCLEARPIN to High, the arduino stops cycling and moves the turret to the desired location
+  
   static int t=0;
   while(digitalRead(ALLCLEARPIN) == LOW){
     t = (t+1)%(tool_tot1 + tool_tot2);    
@@ -215,16 +214,16 @@ int turret_cycle(int delay_time){
 
 //    Serial.print(t); Serial.print(' ');
 //    Serial.print(t1); Serial.print(t2); Serial.print(t3); Serial.println(t4);
-    
+    Serial.println(t);
     delay(delay_time);
   }
   int tool_num = t + 1;
-  Serial.println(t);
   return tool_num;
 }
 
 void trapezoid(long p3, bool dir, float accel, float vel_max, int turret_no){
-
+  // move turret in a trapezoidal velocity profile
+  
   trap_count = 0;
   
   float t1 = vel_max/accel;
@@ -253,12 +252,6 @@ void trapezoid(long p3, bool dir, float accel, float vel_max, int turret_no){
     if (micros() - pulse_timer > 1000000/vel){
       pulse(dir, turret_no);   
       pulse_timer = micros();
-  
-//        Serial.print("position: ");
-//        Serial.print(pulse_count);
-//        Serial.print("  velocity: ");
-//        Serial.print(vel);
-//        Serial.print('\n');
     }
   }
   
@@ -268,7 +261,7 @@ void trapezoid(long p3, bool dir, float accel, float vel_max, int turret_no){
 
 
 void pulse(bool dir, int turret_no){
-
+  // pulse the desired turret in the desired direction
 
   if (turret_no == 1){
     digitalWrite(DIRPIN1, dir != dir_toggle);
@@ -303,7 +296,10 @@ void pulse(bool dir, int turret_no){
   }
 }
 
+
 int tool_read(){
+  // this is for mode 1 where the arduino will read the tool number from the MASSO controller by converting 4 digital pins into a binary tool number value
+  
   int t1 = digitalRead(TOOLPIN1)==0;
   int t2 = digitalRead(TOOLPIN2)==0;
   int t3 = digitalRead(TOOLPIN3)==0;
@@ -318,18 +314,13 @@ int tool_read(){
     t4 = digitalRead(TOOLPIN4)==0;
     tool_num = t1 + (t2<<1) + (t3<<2) + (t4<<3) + 1;
   }
-//  Serial.print(t1);
-//  Serial.print(t2);
-//  Serial.print(t3);
-//  Serial.print(t4);Serial.print(' ');
-//  Serial.println(tool_num);
 
   return tool_num;
 }
 
 
 void serial_read(){
-  
+  // read the serial input for testing purposes
   
   while (Serial.available() > 0) {      // if there are bytes available in the serial port
     String incomingByte = Serial.readStringUntil('\n');     // read the line in the serial port as a string until '\n'       
@@ -372,6 +363,7 @@ void serial_read(){
 
 
 void home_turret(int turret_no){
+  // home the desired turret using two hall sensors
   
   pulse_count = 0;    // reset pulse count
   pulse_count_2 = 0;
@@ -380,26 +372,39 @@ void home_turret(int turret_no){
   
   home_trapezoid((long)360*res/1.8, 1, home_accel, home_vel_max, turret_no);    // do a full circle and find the position that has the max hall sensor reading
 
+  // switch between the two offsets depending on turret
+  int offset = 0;
+  if (turret_no ==1){
+    offset = home_offset_1;    
+  }
+  if (turret_no == 2){
+    offset = home_offset_2;
+  }
   if (abs(hall_pos[0] - hall_pos[1])*1.8/res > 185){
-    trapezoid(hall_pos[1], 1, home_accel, home_vel_max, turret_no);   // move to the hall sensor position
+    trapezoid((hall_pos[1] + offset*res/1.8), 1, home_accel, home_vel_max, turret_no);   // move to the hall sensor position + the home offset
+//    trapezoid((hall_pos[1] + home_offset_1*res/1.8), 1, home_accel, home_vel_max, turret_no);   // move to the hall sensor position + the home offset
     Serial.println("option 1");
+    Serial.println(hall_pos[1] + home_offset_1*res/1.8);
   }
   else{
-    trapezoid(hall_pos[0], 1, home_accel, home_vel_max, turret_no);   // move to the hall sensor position
+    trapezoid((hall_pos[0] + offset*res/1.8), 1, home_accel, home_vel_max, turret_no);   // move to the hall sensor position + the home offset
+//  trapezoid(hall_pos[0], 1, home_accel, home_vel_max, turret_no);   // move to the hall sensor position + the home offset
     Serial.println("option 2");
   }
 
   if (turret_no == 1){
-  trapezoid((hall_angle_1)*res/1.8, 0, home_accel, home_vel_max, turret_no);    // move backwards the hall sensor offset plus an additional backdrive parameter
+  trapezoid((hall_angle_1)*res/1.8, 0, home_accel, home_vel_max, turret_no);    // move backwards the hall sensor offset
   }
   if (turret_no == 2){
-  trapezoid((hall_angle_2)*res/1.8, 0, home_accel, home_vel_max, turret_no);    // move backwards the hall sensor offset plus an additional backdrive parameter
+  trapezoid((hall_angle_2)*res/1.8, 0, home_accel, home_vel_max, turret_no);    // move backwards the hall sensor offset
   }
-  
+
+  // reset variables
   pulse_count = 0;
   pulse_target = 0;
   pulse_count_2 = 0;
   pulse_target_2 = 0;
+  
   if (turret_no == 1){
     tool_num1 = 1;
   }
@@ -407,6 +412,7 @@ void home_turret(int turret_no){
     tool_num2 = tool_tot1 + 1;
   }
 
+  // detect number of tools in turret, currently supports 4, 6, and 8 (this is untested)
   if (abs(hall_pos[0] - hall_pos[1])*1.8/res > 55 && abs(hall_pos[0] - hall_pos[1])*1.8/res < 65){
     tool_angle1 = 60;
   }
@@ -421,6 +427,7 @@ void home_turret(int turret_no){
 
 
 void home_trapezoid(long p3, bool dir, float accel, float vel_max, int turret_no){
+  // trapezoidal motion profile adapted for reading analog input in order to detect hall sensors
 
   int hall_flag = 0;
   trap_count = 0;
