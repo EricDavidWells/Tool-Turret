@@ -1,22 +1,24 @@
 //#define ENABLEPIN 9 // must be LOW in order for driver to be turned on
-#define M0PIN 8 // determines microstep size
-#define M1PIN 7 // determines microstep size
-#define M2PIN 6 // determines microstep size
-#define RESETPIN 5  // must be HIGH in order for driver to be turned on
-#define SLEEPPIN 9  // must be HIGH in order for driver to be turned on
+#define M0PIN 7// determines microstep size
+#define M1PIN 6 // determines microstep size
+#define M2PIN 5 // determines microstep size
+#define RESETPIN 4  // must be HIGH in order for driver to be turned on
+#define SLEEPPIN  4 // must be HIGH in order for driver to be turned on
 
 #define DIRPIN1 2    // specifies which direction the first turret will turn 
 #define STEPPIN1 3   // moves the motor one microstep per pulse
-#define DIRPIN2 10  // specifies which direction the first turret will turn
-#define STEPPIN2 11 // moves the motor one microstep per pulse
+#define DIRPIN2 9  // specifies which direction the first turret will turn
+#define STEPPIN2 8 // moves the motor one microstep per pulse
 
-#define HALLPIN1 0  // analog input pin for the first turret hall sensor
-#define HALLPIN2 1  // analog input pin for the first turret hall sensor
+#define HALLPIN1 A2  // analog input pin for the first turret hall sensor
+#define HALLPIN2 A4  // analog input pin for the first turret hall sensor
 
-#define TOOLPIN1 12 // binary input pins
-#define TOOLPIN2 13
-#define TOOLPIN3 A2
-#define TOOLPIN4 A3
+#define TOOLPIN1 A1 // binary input pins
+#define TOOLPIN2 A3
+#define TOOLPIN3 A5
+#define TOOLPIN4 A7
+
+#define SIGNALPIN 13  // signal pin to MASSO
 
 #define SIGNALPIN A4  // signal pin to MASSO
 
