@@ -13,5 +13,6 @@ int b = analogRead(HALLPIN2);
 
 Serial.print("hall sensor 1 value: ");Serial.print(a);
 Serial.print(" hall sensor 2 value: ");Serial.println(b);
-delay(100);
+delay(10);
+
 }
