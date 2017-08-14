@@ -16,7 +16,7 @@
 #define TOOLPIN1 A1 // binary input pins
 #define TOOLPIN2 A3
 #define TOOLPIN3 A5
-#define TOOLPIN4 13
+#define TOOLPIN4 A0
 
 #define SIGNALPIN A7  // signal pin to MASSO
 
